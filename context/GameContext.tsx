@@ -163,7 +163,15 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     case "RESET_GAME":
       if (state.isMultiplayer) {
-        state.onMoveEnd({ gameOver: null, board: initializeBoard() });
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { playerId, ...other } = state;
+        const newState = {
+          ...other,
+          isMultiplayer: true,
+          gameOver: null,
+          board: initializeBoard(),
+        };
+        state.onMoveEnd(newState);
         return {
           ...state,
           board: initializeBoard(),
