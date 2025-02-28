@@ -29,7 +29,7 @@ export const isValidMove = (
 
   // Regular piece movement
   if (piece.type === "regular") {
-    const forward = piece.player === 1 ? 1 : -1;
+    const forward = piece.player === 1 ? -1 : 1;
     return (
       (rowDiff === forward && colDiff === 0) || // Forward
       (rowDiff === 0 && Math.abs(colDiff) === 1) // Sideways
@@ -74,7 +74,12 @@ export const executeMove = (
   to: Position,
 ): Board => {
   // Validate positions
-  if (!Array.isArray(from) || from.length !== 2 || !Array.isArray(to) || to.length !== 2) {
+  if (
+    !Array.isArray(from) ||
+    from.length !== 2 ||
+    !Array.isArray(to) ||
+    to.length !== 2
+  ) {
     console.error("Invalid positions in executeMove:", { from, to });
     throw new Error("Invalid positions");
   }
@@ -83,9 +88,18 @@ export const executeMove = (
   const [toRow, toCol] = to;
 
   // Validate board and positions
-  if (!board || !Array.isArray(board) || board.length === 0 ||
-      !isWithinBounds(fromRow, fromCol) || !isWithinBounds(toRow, toCol)) {
-    console.error("Invalid board or out of bounds positions:", { board, from, to });
+  if (
+    !board ||
+    !Array.isArray(board) ||
+    board.length === 0 ||
+    !isWithinBounds(fromRow, fromCol) ||
+    !isWithinBounds(toRow, toCol)
+  ) {
+    console.error("Invalid board or out of bounds positions:", {
+      board,
+      from,
+      to,
+    });
     throw new Error("Invalid board or positions");
   }
 
@@ -97,10 +111,10 @@ export const executeMove = (
 
   // Create a deep copy of the board
   const newBoard = JSON.parse(JSON.stringify(board));
-  
+
   // Move the piece
   newBoard[toRow][toCol] = newBoard[fromRow][fromCol];
   newBoard[fromRow][fromCol] = null;
-  
+
   return newBoard;
 };

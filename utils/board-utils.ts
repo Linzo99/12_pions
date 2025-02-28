@@ -5,22 +5,22 @@ export const initializeBoard = (): Board => {
     .fill(null)
     .map(() => Array(BOARD_SIZE).fill(null));
 
-  // Place Player 1 (blue) pieces
-  for (let row = 0; row < 3; row++) {
-    for (let col = 0; col < BOARD_SIZE; col++) {
-      if (row < 2 || (row === 2 && col < 2)) {
-        newBoard[row][col] = { player: 1, type: "regular" };
-      }
-    }
-  }
-
-  // Place Player 2 (red) pieces
+  // Place Player 1 (blue) pieces at the bottom
   for (let row = BOARD_SIZE - 1; row > BOARD_SIZE - 4; row--) {
     for (let col = 0; col < BOARD_SIZE; col++) {
       if (
         row > BOARD_SIZE - 3 ||
         (row === BOARD_SIZE - 3 && col > BOARD_SIZE - 3)
       ) {
+        newBoard[row][col] = { player: 1, type: "regular" };
+      }
+    }
+  }
+
+  // Place Player 2 (red) pieces at the top
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < BOARD_SIZE; col++) {
+      if (row < 2 || (row === 2 && col < 2)) {
         newBoard[row][col] = { player: 2, type: "regular" };
       }
     }
@@ -50,8 +50,8 @@ export const promotePiece = (board: Board, row: number, col: number): void => {
   if (!piece) return;
 
   const isLastRow =
-    (piece.player === 1 && row === BOARD_SIZE - 1) ||
-    (piece.player === 2 && row === 0);
+    (piece.player === 1 && row === 0) ||
+    (piece.player === 2 && row === BOARD_SIZE - 1);
   const isLastPiece = countPlayerPieces(board, piece.player) === 1;
 
   if (piece.type === "regular" && (isLastRow || isLastPiece)) {

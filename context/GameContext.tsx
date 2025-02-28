@@ -4,11 +4,11 @@ import { Board, Player, Position } from "@/types/game";
 import {
   countPlayerPieces,
   executeMove,
-  findBestMove,
   getAllPossibleMoves,
   getCaptureMoves,
   initializeBoard,
   isValidMove,
+  minimax,
   promotePiece,
 } from "@/utils";
 import { createContext, useContext, useEffect, useReducer } from "react";
@@ -29,7 +29,7 @@ export interface GameState {
 }
 
 // Define the initial state
-const initialState: GameState = {
+export const initialState: GameState = {
   board: [],
   currentPlayer: 1,
   playerId: 1,
@@ -74,6 +74,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         board: initializeBoard(),
+        currentPlayer: 1,
       };
     case "SELECT_PIECE":
       return {
@@ -162,7 +163,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     case "RESET_GAME":
       if (state.isMultiplayer) {
-        state.onMoveEnd({ board: initializeBoard() });
+        state.onMoveEnd({ gameOver: null, board: initializeBoard() });
         return {
           ...state,
           board: initializeBoard(),
@@ -190,6 +191,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case "SET_MULTIPLAYER":
       return {
         ...state,
+        isComputerEnabled: false,
         isMultiplayer: action.value,
       };
     case "SET_ON_MOVE_END":
@@ -209,7 +211,6 @@ interface GameContextType {
   checkForCaptures: (playerNumber: Player) => boolean;
   handleCellClick: (row: number, col: number) => void;
   makeComputerMove: () => Promise<void>;
-  resetGame: () => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -234,7 +235,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: "SET_GAME_OVER", winner: 2 });
     } else if (player2Pieces === 0) {
       dispatch({ type: "SET_GAME_OVER", winner: 1 });
-    } else if (player1Pieces === 1 && player2Pieces === 1) {
+    } else if (
+      player1Pieces === 1 &&
+      player2Pieces === 1 &&
+      !state.sequentialCapture
+    ) {
       dispatch({ type: "SET_GAME_OVER", winner: "draw" });
     }
   }, [state.board]);
@@ -257,8 +262,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (
       state.isComputerEnabled &&
-      state.currentPlayer === 1 &&
-      !state.gameOver
+      state.currentPlayer === 2 &&
+      !state.gameOver &&
+      !state.isMultiplayer // Don't trigger AI moves in multiplayer
     ) {
       setTimeout(makeComputerMove, 500);
     }
@@ -267,6 +273,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     state.currentPlayer,
     state.gameOver,
     state.sequentialCapture,
+    state.isMultiplayer, // Add isMultiplayer to dependencies
   ]);
 
   // Check for captures
@@ -289,22 +296,29 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const makeComputerMove = async () => {
     if (
       !state.isComputerEnabled ||
-      state.currentPlayer !== 1 ||
+      state.currentPlayer !== 2 ||
       state.gameOver ||
-      state.board.length === 0
+      state.board.length === 0 ||
+      state.isMultiplayer // Don't allow computer moves in multiplayer
     ) {
       return;
     }
 
     try {
       dispatch({ type: "SET_THINKING", value: true });
-
       // Get all possible moves
-      const allMoves = getAllPossibleMoves(state.board, 1);
-      const bestMove = findBestMove(state.board, 1, 8);
-
-      if (bestMove) {
-        const { from, to, captures } = bestMove;
+      const allMoves = getAllPossibleMoves(state.board, 2);
+      const result = minimax(
+        state.board,
+        4,
+        -Infinity,
+        Infinity,
+        true,
+        2, // currentPlayer is 2 (computer)
+        2, // maximizingPlayer is 2 (computer)
+      );
+      if (result.move) {
+        const { from, to, captures } = result.move;
         dispatch({
           type: "MOVE_PIECE",
           from,
@@ -312,7 +326,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           captures,
         });
       } else if (allMoves.length === 0) {
-        dispatch({ type: "SET_GAME_OVER", winner: 2 });
+        dispatch({ type: "SET_GAME_OVER", winner: 1 });
       }
     } catch (error) {
       console.error("Computer move error:", error);
@@ -324,7 +338,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   // Handle cell click
   const handleCellClick = (row: number, col: number) => {
     if (state.gameOver) return;
-    if (state.isComputerEnabled && state.currentPlayer === 1) return;
+    if (state.isComputerEnabled && state.currentPlayer == 2) return;
     if (state.isMultiplayer && state.playerId !== state.currentPlayer) return;
 
     const clickedCell = state.board[row][col];
@@ -417,11 +431,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Reset game
-  const resetGame = () => {
-    dispatch({ type: "RESET_GAME" });
-  };
-
   return (
     <GameContext.Provider
       value={{
@@ -430,7 +439,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         checkForCaptures,
         handleCellClick,
         makeComputerMove,
-        resetGame,
       }}
     >
       {children}

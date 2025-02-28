@@ -1,239 +1,230 @@
 import { Board, Move, Player, Position } from "@/types/game";
+import { promotePiece } from "./board-utils";
 import { getCaptureMoves } from "./capture-utils";
 import { isValidMove } from "./move-utils";
 
-// Evaluation scores
-const PIECE_VALUE = 10;
-const CAPTURE_VALUE = 20;
-const POSITION_VALUE = 1;
-const CENTER_BONUS = 2;
-
-// Function to get all valid moves for a piece
-function getValidMoves(board: Board, row: number, col: number): Position[] {
-  const validMoves: Position[] = [];
-  const piece = board[row][col];
-  
-  if (!piece) return [];
-  
-  // Check all possible directions (up, down, left, right, diagonals)
-  const directions = [
-    [-1, 0], [1, 0], [0, -1], [0, 1], // orthogonal
-    [-1, -1], [-1, 1], [1, -1], [1, 1] // diagonal
-  ];
-  
-  for (const [dRow, dCol] of directions) {
-    const newRow = row + dRow;
-    const newCol = col + dCol;
-    
-    // Check if the move is valid
-    if (isValidMove(board, row, col, newRow, newCol)) {
-      validMoves.push([newRow, newCol]);
-    }
-  }
-  
-  return validMoves;
-}
-
-// Get all possible moves for a player
-export function getAllPossibleMoves(board: Board, player: Player): Move[] {
-  const moves: Move[] = [];
-  const captureMoves: Move[] = [];
-
-  // Check each piece on the board
-  for (let i = 0; i < board.length; i++) {
-    for (let j = 0; j < board[i].length; j++) {
-      const piece = board[i][j];
-      if (piece && piece.player === player) {
-        // Check for capture moves first
-        const captures = getCaptureMoves(board, i, j);
-        if (captures.length > 0) {
-          for (const capture of captures) {
-            captureMoves.push({
-              from: [i, j],
-              to: capture.finalPosition,
-              captures: capture.capturedPositions,
-              score: 0,
-              isCapture: true,
-            });
-          }
-        }
-        
-        // If no captures are available, check regular moves
-        if (captureMoves.length === 0) {
-          const validMoves = getValidMoves(board, i, j);
-          for (const move of validMoves) {
-            moves.push({
-              from: [i, j],
-              to: move,
-              captures: [],
-              score: 0,
-              isCapture: false,
-            });
-          }
-        }
-      }
-    }
-  }
-
-  // If there are capture moves, only return those (captures are mandatory)
-  return captureMoves.length > 0 ? captureMoves : moves;
-}
-
-// Find the best move for the AI player using minimax algorithm
-export function findBestMove(
-  board: Board,
-  player: Player,
-  depth: number = 3,
-): Move | null {
-  const moves = getAllPossibleMoves(board, player);
-  if (moves.length === 0) return null;
-
-  let bestScore = -Infinity;
-  let bestMove = null;
-
-  for (const move of moves) {
-    // Apply the move to a new board
-    const newBoard = applyMove(board, move);
-
-    // Evaluate using minimax
-    const score = minimax(
-      newBoard,
-      depth - 1,
-      false,
-      player === 1 ? 2 : 1,
-      player,
-      -Infinity,
-      Infinity,
-    );
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestMove = move;
-    }
-  }
-
-  return bestMove;
-}
-
-// Minimax algorithm with alpha-beta pruning
-function minimax(
-  board: Board,
-  depth: number,
-  isMaximizing: boolean,
-  currentPlayer: Player,
-  aiPlayer: Player,
-  alpha: number,
-  beta: number,
-): number {
-  // Base case: if we've reached the maximum depth or game is over
-  if (depth === 0) {
-    return evaluateBoard(board, aiPlayer);
-  }
-
-  const moves = getAllPossibleMoves(board, currentPlayer);
-  if (moves.length === 0) {
-    return isMaximizing ? -1000 : 1000; // Game over, no moves available
-  }
-
-  if (isMaximizing) {
-    let maxScore = -Infinity;
-    for (const move of moves) {
-      const newBoard = applyMove(board, move);
-      const score = minimax(
-        newBoard,
-        depth - 1,
-        false,
-        currentPlayer === 1 ? 2 : 1,
-        aiPlayer,
-        alpha,
-        beta,
-      );
-      maxScore = Math.max(maxScore, score);
-      alpha = Math.max(alpha, score);
-      if (beta <= alpha) break; // Alpha-beta pruning
-    }
-    return maxScore;
-  } else {
-    let minScore = Infinity;
-    for (const move of moves) {
-      const newBoard = applyMove(board, move);
-      const score = minimax(
-        newBoard,
-        depth - 1,
-        true,
-        currentPlayer === 1 ? 2 : 1,
-        aiPlayer,
-        alpha,
-        beta,
-      );
-      minScore = Math.min(minScore, score);
-      beta = Math.min(beta, score);
-      if (beta <= alpha) break; // Alpha-beta pruning
-    }
-    return minScore;
-  }
-}
-
-// Apply a move to the board and return the new board state
-function applyMove(board: Board, move: Move): Board {
-  const newBoard: Board = JSON.parse(JSON.stringify(board));
-  const [fromRow, fromCol] = move.from;
-  const [toRow, toCol] = move.to;
-
-  // Move the piece
-  newBoard[toRow][toCol] = newBoard[fromRow][fromCol];
-  newBoard[fromRow][fromCol] = null;
-
-  // Handle captures
-  if (move.captures && move.captures.length > 0) {
-    for (const [captureRow, captureCol] of move.captures) {
-      newBoard[captureRow][captureCol] = null;
-    }
-  }
-
-  return newBoard;
-}
-
-// Evaluate the board state for the specified player
-export function evaluateBoard(board: Board, player: Player): number {
+const evaluateBoard = (board: Board, maximizingPlayer: Player): number => {
   let score = 0;
-  const opponent = player === 1 ? 2 : 1;
-
-  // Count pieces and evaluate their positions
-  for (let i = 0; i < board.length; i++) {
-    for (let j = 0; j < board[i].length; j++) {
-      const piece = board[i][j];
+  for (let row = 0; row < board.length; row++) {
+    for (let col = 0; col < board[row].length; col++) {
+      const piece = board[row][col];
       if (piece) {
-        if (piece.player === player) {
-          score += PIECE_VALUE;
-
-          // Add position-based evaluation
-          score += POSITION_VALUE;
-
-          // Bonus for controlling the center
-          if (i >= 1 && i <= 4 && j >= 1 && j <= 4) {
-            score += CENTER_BONUS;
+        const pieceValue = piece.type === "king" ? 3 : 1;
+        if (piece.player === maximizingPlayer) {
+          score += pieceValue;
+          // Add positional bonus for regular pieces moving forward
+          if (piece.type === "regular") {
+            // Player 1 moves up (decreasing row values is good, starting from bottom row=4)
+            // Player 2 moves down (increasing row values is good, starting from top row=0)
+            if (maximizingPlayer === 1) {
+              // For Player 1: reward being closer to the top (row 0)
+              score += (board.length - 1 - row) * 0.1;
+            } else {
+              // For Player 2: reward being closer to the bottom (row 4)
+              score += row * 0.1;
+            }
           }
         } else {
-          score -= PIECE_VALUE;
+          score -= pieceValue;
+          if (piece.type === "regular") {
+            // For opponent's pieces, reverse the positional bonuses
+            if (maximizingPlayer === 1) {
+              // When maximizing for Player 1, opponent's pieces are worse when closer to bottom
+              score -= row * 0.1;
+            } else {
+              // When maximizing for Player 2, opponent's pieces are worse when closer to top
+              score -= (board.length - 1 - row) * 0.1;
+            }
+          }
+        }
+      }
+    }
+  }
+  return score;
+};
+
+export const minimax = (
+  board: Board,
+  depth: number,
+  alpha: number,
+  beta: number,
+  isMaximizing: boolean,
+  currentPlayer: Player,
+  maximizingPlayer: Player,
+): { score: number; move?: Move } => {
+  if (depth === 0) {
+    return { score: evaluateBoard(board, maximizingPlayer) };
+  }
+
+  // Get all legal moves (this will only include captures if any are available)
+  const moves = getAllPossibleMoves(board, currentPlayer);
+
+  if (moves.length === 0) {
+    // If no moves available, this is a loss for the current player
+    return {
+      score: isMaximizing ? -1000 : 1000,
+    };
+  }
+
+  let bestMove: Move | undefined;
+  let bestScore = isMaximizing ? -Infinity : Infinity;
+
+  // Prioritize moves with captures and promotions
+  const prioritizedMoves = moves
+    .map((move) => {
+      let priority = 0;
+
+      // Check if this move captures a king
+      if (move.captures && move.captures.length > 0) {
+        for (const [captureRow, captureCol] of move.captures) {
+          const capturedPiece = board[captureRow][captureCol];
+          if (capturedPiece && capturedPiece.type === "king") {
+            priority += 20; // Highest priority for capturing kings
+          } else {
+            priority += 10; // High priority for any capture
+          }
+        }
+      }
+
+      // Check if this move leads to promotion
+      const [fromRow, fromCol] = move.from;
+      const [toRow] = move.to;
+      const movingPiece = board[fromRow][fromCol];
+
+      if (movingPiece && movingPiece.type === "regular") {
+        // Player 1 promotes at top row (0), Player 2 at bottom row (board.length - 1)
+        if (
+          (currentPlayer === 1 && toRow === 0) ||
+          (currentPlayer === 2 && toRow === board.length - 1)
+        ) {
+          priority += 15; // High priority for promotion
+        }
+      }
+
+      return { ...move, priority };
+    })
+    .sort((a, b) => b.priority - a.priority);
+
+  for (const move of prioritizedMoves) {
+    // Create a deep copy of the board
+    const newBoard = JSON.parse(JSON.stringify(board));
+
+    // Execute the move
+    newBoard[move.to[0]][move.to[1]] = newBoard[move.from[0]][move.from[1]];
+    newBoard[move.from[0]][move.from[1]] = null;
+
+    // Handle captures
+    if (move.captures && move.captures.length > 0) {
+      for (const capturePos of move.captures) {
+        newBoard[capturePos[0]][capturePos[1]] = null;
+      }
+    }
+
+    // Handle promotion
+    promotePiece(newBoard, move.to[0], move.to[1]);
+
+    // Check for additional captures (sequential)
+    const additionalCaptures = getCaptureMoves(
+      newBoard,
+      move.to[0],
+      move.to[1],
+    );
+
+    // If there are additional captures, continue with the same player
+    const nextPlayer =
+      additionalCaptures.length > 0
+        ? currentPlayer
+        : currentPlayer === 1
+          ? 2
+          : 1;
+
+    const result = minimax(
+      newBoard,
+      depth - 1,
+      alpha,
+      beta,
+      !isMaximizing,
+      nextPlayer,
+      maximizingPlayer,
+    );
+
+    if (isMaximizing) {
+      if (result.score > bestScore) {
+        bestScore = result.score;
+        bestMove = move;
+      }
+      alpha = Math.max(alpha, bestScore);
+    } else {
+      if (result.score < bestScore) {
+        bestScore = result.score;
+        bestMove = move;
+      }
+      beta = Math.min(beta, bestScore);
+    }
+
+    if (beta <= alpha) {
+      break;
+    }
+  }
+
+  return { score: bestScore, move: bestMove };
+};
+
+// Updated getAllPossibleMoves with complete capture handling
+export const getAllPossibleMoves = (board: Board, player: number): Move[] => {
+  const moves: Move[] = [];
+  const captureMovesExist = hasCaptureMove(board, player);
+
+  for (let row = 0; row < 5; row++) {
+    for (let col = 0; col < 5; col++) {
+      const piece = board[row][col];
+      if (!piece || piece.player !== player) continue;
+
+      // Get captures first
+      const captures = getCaptureMoves(board, row, col);
+      const cap_w_scores = captures.map((cap) => ({
+        from: [row, col] as Position,
+        to: cap.finalPosition,
+        captures: cap.capturedPositions,
+        score: 1 * captures.length,
+      }));
+
+      moves.push(...cap_w_scores);
+
+      // Get regular moves ONLY if no captures found anywhere on the board
+      if (!captureMovesExist && captures.length === 0) {
+        for (let toRow = 0; toRow < 5; toRow++) {
+          for (let toCol = 0; toCol < 5; toCol++) {
+            if (isValidMove(board, row, col, toRow, toCol)) {
+              moves.push({
+                from: [row, col],
+                to: [toRow, toCol],
+                captures: [],
+                score: 0,
+              });
+            }
+          }
         }
       }
     }
   }
 
-  // Evaluate capture opportunities
-  for (let i = 0; i < board.length; i++) {
-    for (let j = 0; j < board[i].length; j++) {
-      const piece = board[i][j];
+  // Prioritize moves with captures
+  return moves.sort((a, b) => b.score - a.score);
+};
+
+// Helper function to check if any capture moves exist for the player
+const hasCaptureMove = (board: Board, player: number): boolean => {
+  for (let row = 0; row < board.length; row++) {
+    for (let col = 0; col < board[row].length; col++) {
+      const piece = board[row][col];
       if (piece && piece.player === player) {
-        const captures = getCaptureMoves(board, i, j);
-        score += captures.length * CAPTURE_VALUE;
-      } else if (piece && piece.player === opponent) {
-        const captures = getCaptureMoves(board, i, j);
-        score -= captures.length * CAPTURE_VALUE;
+        const captures = getCaptureMoves(board, row, col);
+        if (captures.length > 0) {
+          return true;
+        }
       }
     }
   }
-
-  return score;
-}
+  return false;
+};

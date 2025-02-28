@@ -9,7 +9,8 @@ import {
   useState,
 } from "react";
 import { io, Socket } from "socket.io-client";
-import { GameState, useGame } from "./GameContext";
+import { GameState, initialState, useGame } from "./GameContext";
+import { initializeBoard } from "@/utils";
 
 // Define types for our multiplayer context
 type PlayerInfo = {
@@ -109,11 +110,17 @@ export const MultiplayerProvider = ({ children }: { children: ReactNode }) => {
       setRoomInfo(data.roomInfo);
       setIsHost(true);
       setError(null);
+      // reinitiaze the board
 
-      // Initialize the game board
-      dispatch({ type: "INITIALIZE_BOARD" });
-      dispatch({ type: "SET_MULTIPLAYER", value: true });
-      dispatch({ type: "SET_PLAYER_ID", value: 1 });
+      dispatch({
+        type: "SET_STATE",
+        value: {
+          ...initialState,
+          board: initializeBoard(),
+          isMultiplayer: true,
+          playerId: 1,
+        },
+      });
     }
 
     function onRoomJoined(data: {
@@ -127,23 +134,38 @@ export const MultiplayerProvider = ({ children }: { children: ReactNode }) => {
       setIsHost(false);
       setError(null);
 
-      // Sync with the room's game state
-      if (data.roomInfo.board && data.roomInfo.board.length > 0) {
-        dispatch({ type: "SET_BOARD", board: data.roomInfo.board });
-        dispatch({
-          type: "SET_CURRENT_PLAYER",
-          player: data.roomInfo.currentPlayer,
-        });
-      } else {
-        dispatch({ type: "INITIALIZE_BOARD" });
-      }
-
-      dispatch({ type: "SET_MULTIPLAYER", value: true });
-      dispatch({ type: "SET_PLAYER_ID", value: 2 });
+      dispatch({
+        type: "SET_STATE",
+        value: {
+          playerId: 2,
+          isMultiplayer: true,
+          board: data.roomInfo.board,
+          currentPlayer: data.roomInfo.currentPlayer,
+        },
+      });
     }
 
     function onPlayerJoined(data: { player: PlayerInfo; roomInfo: RoomInfo }) {
       setRoomInfo(data.roomInfo);
+      dispatch({
+        type: "SET_STATE",
+        value: {
+          ...initialState,
+          board: initializeBoard(),
+          isMultiplayer: true,
+          currentPlayer: 1,
+        },
+      });
+
+      socket?.emit("update-game-state", {
+        roomId,
+        playerId: playerInfo!.id,
+        gameState: {
+          currentPlayer: 1,
+          playerId: 2,
+          board: initializeBoard(),
+        },
+      });
     }
 
     function onGameStateUpdated(data: {
@@ -164,22 +186,15 @@ export const MultiplayerProvider = ({ children }: { children: ReactNode }) => {
 
     function onPlayerDisconnected(data: {
       playerId: string;
-      playerName: string;
+      roomInfo: RoomInfo;
     }) {
       // If we're in a room, update the room info to reflect that a player left
-      if (roomInfo) {
-        const updatedPlayers = roomInfo.players.filter(
-          (p) => p.id !== data.playerId,
-        );
-        setRoomInfo({
-          ...roomInfo,
-          players: updatedPlayers,
-        });
-      }
+      if (roomInfo) setRoomInfo(data.roomInfo);
+      if (data.playerId !== playerInfo?.id)
+        dispatch({ type: "SET_MULTIPLAYER", value: false });
 
-      // Show a notification to the user
-      setError(`Player ${data.playerName} has disconnected`);
-      dispatch({ type: "SET_MULTIPLAYER", value: false });
+      setError(`Player ${2} has disconnected`);
+      dispatch({ type: "SET_PLAYER_ID", value: 1 });
     }
 
     dispatch({
@@ -199,7 +214,7 @@ export const MultiplayerProvider = ({ children }: { children: ReactNode }) => {
     socket.on("room-joined", onRoomJoined);
     socket.on("player-joined", onPlayerJoined);
     socket.on("game-state-updated", onGameStateUpdated);
-    socket.on("player-disconnected", onPlayerDisconnected);
+    socket.on("player-left", onPlayerDisconnected);
 
     // Clean up event handlers on unmount
     return () => {
@@ -207,7 +222,7 @@ export const MultiplayerProvider = ({ children }: { children: ReactNode }) => {
       socket.off("room-joined", onRoomJoined);
       socket.off("player-joined", onPlayerJoined);
       socket.off("game-state-updated", onGameStateUpdated);
-      socket.off("player-disconnected", onPlayerDisconnected);
+      socket.off("player-left", onPlayerDisconnected);
     };
   }, [socket, roomId, playerInfo, roomInfo, state.currentPlayer, dispatch]);
 

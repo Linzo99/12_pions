@@ -45,8 +45,8 @@ export const isValidCapture = (
 
   if (piece.type === "regular") {
     const validDirection =
-      (piece.player === 1 && jumpRow > fromRow) || // Forward for player 1
-      (piece.player === 2 && jumpRow < fromRow) || // Forward for player 2
+      (piece.player === 1 && jumpRow < fromRow) || // Forward for player 1 (now upward)
+      (piece.player === 2 && jumpRow > fromRow) || // Forward for player 2 (now downward)
       jumpRow === fromRow; // Horizontal for both players
 
     return (validDirection && isEnemy && landingEmpty) as boolean;
@@ -71,50 +71,19 @@ export const getCaptureMoves = (
   if (!piece) return [];
 
   const moves: CaptureMove[] = [];
-  const visited = new Set<string>();
-
-  /**
-   * Recursively finds all possible capture sequences
-   * @param currentRow Current row in the sequence
-   * @param currentCol Current column in the sequence
-   * @param capturedPositions Positions captured so far
-   */
-  const findCaptures = (
-    currentRow: number,
-    currentCol: number,
-    capturedPositions: Position[] = [],
-  ) => {
-    const currentKey = `${currentRow},${currentCol}`;
-    if (visited.has(currentKey)) return;
-    visited.add(currentKey);
-
-    const possibleCaptures = ORTHOGONAL_DIRECTIONS.flatMap((dir) => {
-      if (piece.type === "king") {
-        return getKingCaptures(board, currentRow, currentCol, dir);
-      }
-      return getRegularCaptures(board, currentRow, currentCol, dir);
-    }).filter(([r, c]) => isWithinBounds(r, c));
-
-    if (possibleCaptures.length === 0 && capturedPositions.length > 0) {
-      // End of capture sequence
-      moves.push({
-        finalPosition: [currentRow, currentCol],
-        capturedPositions: [...capturedPositions],
-      });
-      return;
+  const possibleCaptures = ORTHOGONAL_DIRECTIONS.flatMap((dir) => {
+    if (piece.type === "king") {
+      return getKingCaptures(board, row, col, dir);
     }
+    return getRegularCaptures(board, row, col, dir);
+  }).filter(([r, c]) => isWithinBounds(r, c));
+  possibleCaptures.map(([jumpRow, jumpCol, capture]) => {
+    moves.push({
+      finalPosition: [jumpRow, jumpCol],
+      capturedPositions: [capture],
+    });
+  });
 
-    for (const [jumpRow, jumpCol, capturePos] of possibleCaptures) {
-      const tempBoard = board.map((row) => [...row]);
-      tempBoard[capturePos[0]][capturePos[1]] = null;
-      tempBoard[currentRow][currentCol] = null;
-      tempBoard[jumpRow][jumpCol] = piece;
-
-      findCaptures(jumpRow, jumpCol, [...capturedPositions, capturePos]);
-    }
-  };
-
-  findCaptures(row, col);
   return moves;
 };
 
@@ -153,8 +122,8 @@ export const getRegularCaptures = (
       // For regular pieces, check direction constraints
       if (piece.type === "regular") {
         const validDirection =
-          (piece.player === 1 && jumpRow > row) || // Forward for player 1
-          (piece.player === 2 && jumpRow < row) || // Forward for player 2
+          (piece.player === 1 && jumpRow < row) || // Forward for player 1 (blue at bottom, moving up)
+          (piece.player === 2 && jumpRow > row) || // Forward for player 2 (red at top, moving down)
           jumpRow === row; // Horizontal for both players
 
         if (validDirection) {
@@ -205,13 +174,13 @@ export const getKingCaptures = (
         break;
       }
     }
-    
+
     // If we found an enemy and now found an empty space, this is a valid capture
     if (foundEnemy && currentPiece === null) {
       captures.push([currentRow, currentCol, enemyPosition as Position]);
       break;
     }
-    
+
     currentRow += dir.row;
     currentCol += dir.col;
   }
@@ -244,8 +213,8 @@ export const getRegularMoves = (
 
       // Regular pieces can only move forward or sideways
       const isForwardOrSideways =
-        (piece.player === 1 && (dir.row === 1 || dir.row === 0)) ||
-        (piece.player === 2 && (dir.row === -1 || dir.row === 0));
+        (piece.player === 1 && (dir.row === -1 || dir.row === 0)) || // Player 1 (blue) at bottom can move up or sideways
+        (piece.player === 2 && (dir.row === 1 || dir.row === 0)); // Player 2 (red) at top can move down or sideways
 
       if (
         isWithinBounds(newRow, newCol) &&

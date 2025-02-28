@@ -32,9 +32,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <main className="flex min-h-screen flex-col justify-center items-center">
-          <Navigation />
           <GameProvider>
-            <MultiplayerProvider>{children}</MultiplayerProvider>
+            <MultiplayerProvider>
+              <Navigation />
+              {children}
+            </MultiplayerProvider>
           </GameProvider>
         </main>
       </body>
