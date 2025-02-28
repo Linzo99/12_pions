@@ -20,7 +20,7 @@ export const GameBoard = () => {
 
   return (
     <div className="">
-      <GameControls isMultiPlayer={isMultiplayer} />
+      <GameControls />
 
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-12 items-center lg:items-start w-full max-w-7xl mx-auto">
         <div className="bg-white p-4 rounded-xl shadow-lg">
@@ -50,7 +50,7 @@ export const GameBoard = () => {
             )}
           </div>
         </div>
-        <GameInfo isMultiplayer={isMultiplayer} />
+        <GameInfo />
       </div>
 
       {isThinking && (
