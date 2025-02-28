@@ -1,4 +1,4 @@
-import { Board, BOARD_SIZE, Player } from "@/types/game";
+import { Board, BOARD_SIZE, Player, Position } from "@/types/game";
 
 export const initializeBoard = (): Board => {
   const newBoard: Board = Array(BOARD_SIZE)
@@ -57,4 +57,8 @@ export const promotePiece = (board: Board, row: number, col: number): void => {
   if (piece.type === "regular" && (isLastRow || isLastPiece)) {
     board[row][col] = { ...piece, type: "king" };
   }
+};
+
+export const createDeepCopy = <T>(obj: T): T => {
+  return JSON.parse(JSON.stringify(obj));
 };

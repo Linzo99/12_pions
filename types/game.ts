@@ -8,6 +8,7 @@ export type Move = {
   to: Position;
   captures: Position[];
   score: number;
+  isCapture?: boolean;
 };
 
 export type Direction = {

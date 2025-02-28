@@ -1,6 +1,15 @@
-import { Board, Position } from "../types/game";
+import { Board, Position } from "@/types/game";
 import { isWithinBounds } from "./board-utils";
 
+/**
+ * Checks if a move is valid according to game rules
+ * @param board Current game board
+ * @param fromRow Starting row
+ * @param fromCol Starting column
+ * @param toRow Target row
+ * @param toCol Target column
+ * @returns True if the move is valid
+ */
 export const isValidMove = (
   board: Board,
   fromRow: number,
@@ -52,13 +61,46 @@ export const isValidMove = (
   return false;
 };
 
+/**
+ * Executes a move on the board
+ * @param board Current game board
+ * @param from Starting position [row, col]
+ * @param to Target position [row, col]
+ * @returns New board with the move executed
+ */
 export const executeMove = (
   board: Board,
   from: Position,
   to: Position,
 ): Board => {
-  const newBoard = board.map((row) => [...row]);
-  newBoard[to[0]][to[1]] = newBoard[from[0]][from[1]];
-  newBoard[from[0]][from[1]] = null;
+  // Validate positions
+  if (!Array.isArray(from) || from.length !== 2 || !Array.isArray(to) || to.length !== 2) {
+    console.error("Invalid positions in executeMove:", { from, to });
+    throw new Error("Invalid positions");
+  }
+
+  const [fromRow, fromCol] = from;
+  const [toRow, toCol] = to;
+
+  // Validate board and positions
+  if (!board || !Array.isArray(board) || board.length === 0 ||
+      !isWithinBounds(fromRow, fromCol) || !isWithinBounds(toRow, toCol)) {
+    console.error("Invalid board or out of bounds positions:", { board, from, to });
+    throw new Error("Invalid board or positions");
+  }
+
+  // Ensure there is a piece at the 'from' position
+  if (!board[fromRow][fromCol]) {
+    console.error("No piece at source position:", from);
+    throw new Error("No piece at source position");
+  }
+
+  // Create a deep copy of the board
+  const newBoard = JSON.parse(JSON.stringify(board));
+  
+  // Move the piece
+  newBoard[toRow][toCol] = newBoard[fromRow][fromCol];
+  newBoard[fromRow][fromCol] = null;
+  
   return newBoard;
 };
