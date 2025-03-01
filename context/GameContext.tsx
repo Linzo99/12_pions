@@ -163,18 +163,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     case "RESET_GAME":
       if (state.isMultiplayer) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { playerId, ...other } = state;
-        const newState = {
-          ...other,
-          isMultiplayer: true,
-          gameOver: null,
-          board: initializeBoard(),
-        };
+        const newState = { gameOver: null, board: initializeBoard() };
         state.onMoveEnd(newState);
         return {
           ...state,
-          board: initializeBoard(),
+          ...newState,
         };
       }
       return {
@@ -236,8 +229,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (state.board.length === 0) return;
 
-    const player1Pieces = countPlayerPieces(state.board, 1);
-    const player2Pieces = countPlayerPieces(state.board, 2);
+    const { count: player1Pieces } = countPlayerPieces(state.board, 1);
+    const { count: player2Pieces } = countPlayerPieces(state.board, 2);
 
     if (player1Pieces === 0) {
       dispatch({ type: "SET_GAME_OVER", winner: 2 });
@@ -250,7 +243,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     ) {
       dispatch({ type: "SET_GAME_OVER", winner: "draw" });
     }
-  }, [state.board]);
+  }, [state.board, state.sequentialCapture]);
 
   // Check for forced captures
   useEffect(() => {

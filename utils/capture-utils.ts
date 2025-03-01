@@ -7,26 +7,11 @@ import {
 } from "@/types/game";
 import { isWithinBounds } from "./board-utils";
 
-/**
- * Represents a capture move with the final position and captured pieces
- */
 export interface CaptureMove {
   finalPosition: Position;
   capturedPositions: Position[];
 }
 
-/**
- * Checks if a capture move is valid
- * @param board Current game board
- * @param piece The piece making the capture
- * @param fromRow Starting row
- * @param fromCol Starting column
- * @param jumpRow Landing row after the capture
- * @param jumpCol Landing column after the capture
- * @param adjacentRow Row of the piece to be captured
- * @param adjacentCol Column of the piece to be captured
- * @returns True if the capture is valid
- */
 export const isValidCapture = (
   board: Board,
   piece: NonNullable<Cell>,
@@ -55,13 +40,6 @@ export const isValidCapture = (
   return (isEnemy && landingEmpty) as boolean;
 };
 
-/**
- * Gets all possible capture moves for a piece
- * @param board Current game board
- * @param row Row of the piece
- * @param col Column of the piece
- * @returns Array of possible capture moves
- */
 export const getCaptureMoves = (
   board: Board,
   row: number,
@@ -87,14 +65,6 @@ export const getCaptureMoves = (
   return moves;
 };
 
-/**
- * Gets possible capture moves for a regular piece in a specific direction
- * @param board Current game board
- * @param row Row of the piece
- * @param col Column of the piece
- * @param dir Direction to check
- * @returns Array of possible capture positions with the captured piece
- */
 export const getRegularCaptures = (
   board: Board,
   row: number,
@@ -110,43 +80,22 @@ export const getRegularCaptures = (
   const jumpCol = adjacentCol + dir.col;
 
   if (
-    isWithinBounds(adjacentRow, adjacentCol) &&
-    isWithinBounds(jumpRow, jumpCol)
+    isValidCapture(
+      board,
+      piece,
+      row,
+      col,
+      jumpRow,
+      jumpCol,
+      adjacentRow,
+      adjacentCol,
+    )
   ) {
-    const adjacentPiece = board[adjacentRow][adjacentCol];
-    if (
-      adjacentPiece &&
-      adjacentPiece.player !== piece.player &&
-      board[jumpRow][jumpCol] === null
-    ) {
-      // For regular pieces, check direction constraints
-      if (piece.type === "regular") {
-        const validDirection =
-          (piece.player === 1 && jumpRow < row) || // Forward for player 1 (blue at bottom, moving up)
-          (piece.player === 2 && jumpRow > row) || // Forward for player 2 (red at top, moving down)
-          jumpRow === row; // Horizontal for both players
-
-        if (validDirection) {
-          return [[jumpRow, jumpCol, [adjacentRow, adjacentCol]]];
-        }
-      } else {
-        // Kings can capture in any orthogonal direction
-        return [[jumpRow, jumpCol, [adjacentRow, adjacentCol]]];
-      }
-    }
+    return [[jumpRow, jumpCol, [adjacentRow, adjacentCol]]];
   }
-
   return [];
 };
 
-/**
- * Gets possible capture moves for a king piece in a specific direction
- * @param board Current game board
- * @param row Row of the piece
- * @param col Column of the piece
- * @param dir Direction to check
- * @returns Array of possible capture positions with the captured piece
- */
 export const getKingCaptures = (
   board: Board,
   row: number,
@@ -157,44 +106,41 @@ export const getKingCaptures = (
   if (!piece || piece.type !== "king") return [];
 
   const captures: [number, number, Position][] = [];
-  let currentRow = row + dir.row;
-  let currentCol = col + dir.col;
-  let foundEnemy = false;
+  let currentRow = row;
+  let currentCol = col;
   let enemyPosition: Position | null = null;
 
-  // Look for an enemy piece in the direction
-  while (isWithinBounds(currentRow, currentCol)) {
-    const currentPiece = board[currentRow][currentCol];
-    if (currentPiece) {
-      if (currentPiece.player !== piece.player && !foundEnemy) {
-        foundEnemy = true;
-        enemyPosition = [currentRow, currentCol];
-      } else {
-        // Found a second piece (either enemy or friendly), stop searching
-        break;
-      }
-    }
-
-    // If we found an enemy and now found an empty space, this is a valid capture
-    if (foundEnemy && currentPiece === null) {
-      captures.push([currentRow, currentCol, enemyPosition as Position]);
-      break;
-    }
-
+  while (true) {
     currentRow += dir.row;
     currentCol += dir.col;
+
+    if (!isWithinBounds(currentRow, currentCol)) break;
+
+    const currentPiece = board[currentRow][currentCol];
+    if (!currentPiece) continue;
+
+    if (currentPiece.player === piece.player) break;
+
+    // Found an enemy piece
+    enemyPosition = [currentRow, currentCol];
+
+    // Look for landing squares after the enemy piece
+    let landingRow = currentRow + dir.row;
+    let landingCol = currentCol + dir.col;
+
+    while (isWithinBounds(landingRow, landingCol)) {
+      if (board[landingRow][landingCol] !== null) break;
+      captures.push([landingRow, landingCol, enemyPosition]);
+      landingRow += dir.row;
+      landingCol += dir.col;
+    }
+
+    break;
   }
 
   return captures;
 };
 
-/**
- * Gets all regular (non-capture) moves for a piece
- * @param board Current game board
- * @param row Row of the piece
- * @param col Column of the piece
- * @returns Array of possible move positions
- */
 export const getRegularMoves = (
   board: Board,
   row: number,
@@ -203,40 +149,22 @@ export const getRegularMoves = (
   const piece = board[row][col];
   if (!piece) return [];
 
-  const moves: Position[] = [];
+  return ORTHOGONAL_DIRECTIONS.flatMap((dir) => {
+    const newRow = row + dir.row;
+    const newCol = col + dir.col;
 
-  if (piece.type === "regular") {
-    // Regular pieces can move one space orthogonally
-    for (const dir of ORTHOGONAL_DIRECTIONS) {
-      const newRow = row + dir.row;
-      const newCol = col + dir.col;
+    if (!isWithinBounds(newRow, newCol)) return [];
+    if (board[newRow][newCol] !== null) return [];
 
-      // Regular pieces can only move forward or sideways
-      const isForwardOrSideways =
-        (piece.player === 1 && (dir.row === -1 || dir.row === 0)) || // Player 1 (blue) at bottom can move up or sideways
-        (piece.player === 2 && (dir.row === 1 || dir.row === 0)); // Player 2 (red) at top can move down or sideways
+    if (piece.type === "regular") {
+      const validDirection =
+        (piece.player === 1 && newRow < row) || // Forward for player 1
+        (piece.player === 2 && newRow > row) || // Forward for player 2
+        newRow === row; // Horizontal for both players
 
-      if (
-        isWithinBounds(newRow, newCol) &&
-        board[newRow][newCol] === null &&
-        isForwardOrSideways
-      ) {
-        moves.push([newRow, newCol]);
-      }
+      return validDirection ? [[newRow, newCol]] : [];
     }
-  } else {
-    // Kings can move multiple spaces in any orthogonal direction
-    for (const dir of ORTHOGONAL_DIRECTIONS) {
-      let newRow = row + dir.row;
-      let newCol = col + dir.col;
 
-      while (isWithinBounds(newRow, newCol) && board[newRow][newCol] === null) {
-        moves.push([newRow, newCol]);
-        newRow += dir.row;
-        newCol += dir.col;
-      }
-    }
-  }
-
-  return moves;
+    return [[newRow, newCol]];
+  });
 };

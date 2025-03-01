@@ -49,9 +49,7 @@ export function useGameBoard() {
     const isValidCapture = isValidCaptureTarget(row, col);
     const isHighlighted = isSelected || isValidMove || isValidCapture;
 
-    return `w-32 h-32 ${
-      (row + col) % 2 === 0 ? "bg-amber-100" : "bg-amber-800"
-    } ${
+    return `w-[68px] md:w-24 lg:w-32 aspect-square ${(row + col) % 2 === 0 ? "bg-amber-100" : "bg-amber-800"} ${
       isHighlighted ? "ring-4 ring-yellow-400 ring-inset" : ""
     } relative cursor-pointer transition-all duration-150 hover:brightness-110`;
   };

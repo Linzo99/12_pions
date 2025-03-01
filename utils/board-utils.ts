@@ -33,16 +33,21 @@ export const isWithinBounds = (row: number, col: number): boolean => {
   return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
 };
 
-export const countPlayerPieces = (board: Board, player: Player): number => {
-  let count = 0;
+export const countPlayerPieces = (
+  board: Board,
+  player: Player,
+): { count: number; lastPiece: Position | null } => {
+  let count: number = 0;
+  let lastPiece: Position | null = null;
   for (let row = 0; row < BOARD_SIZE; row++) {
     for (let col = 0; col < BOARD_SIZE; col++) {
       if (board[row][col]?.player === player) {
         count++;
+        lastPiece = [row, col];
       }
     }
   }
-  return count;
+  return { count, lastPiece };
 };
 
 export const promotePiece = (board: Board, row: number, col: number): void => {
@@ -52,10 +57,21 @@ export const promotePiece = (board: Board, row: number, col: number): void => {
   const isLastRow =
     (piece.player === 1 && row === 0) ||
     (piece.player === 2 && row === BOARD_SIZE - 1);
-  const isLastPiece = countPlayerPieces(board, piece.player) === 1;
+  const { count: countA } = countPlayerPieces(board, piece.player);
+  const { count: countB, lastPiece } = countPlayerPieces(
+    board,
+    piece.player == 1 ? 2 : 1,
+  );
 
-  if (piece.type === "regular" && (isLastRow || isLastPiece)) {
+  if (piece.type === "regular" && (isLastRow || countA == 1)) {
     board[row][col] = { ...piece, type: "king" };
+  }
+
+  if (countB == 1 && lastPiece) {
+    const [row, col] = lastPiece;
+    const pieceB = board[row][col];
+    if (pieceB?.type !== "regular") return;
+    board[row][col] = { ...pieceB, type: "king" };
   }
 };
 

@@ -26,7 +26,7 @@ export const GameBoard = () => {
         <div className="bg-white p-4 rounded-xl shadow-lg">
           <div
             className={cn(
-              "grid grid-cols-5 gap-0 border-4 md:border-8 border-gray-800 shadow-xl aspect-square",
+              "relative grid grid-cols-5 gap-0 border-4 md:border-8 border-primary shadow-xl aspect-square",
               isMultiplayer && playerId == 2 && "rotate-180",
             )}
           >

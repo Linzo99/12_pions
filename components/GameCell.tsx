@@ -37,8 +37,8 @@ const GameCell = ({
         </div>
       )}
       <div
-        className={`absolute top-2 left-2 text-base font-semibold 
-        ${(row + col) % 2 === 0 ? 'text-amber-800' : 'text-amber-100'}`}
+        className={`absolute text-[30%] top-0 left-1 lg:text-base lg:top-2 lg:left-2 font-semibold 
+        ${(row + col) % 2 === 0 ? "text-amber-800" : "text-amber-100"}`}
       >
         {coordinates}
       </div>
